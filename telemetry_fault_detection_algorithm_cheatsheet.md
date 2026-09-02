@@ -847,3 +847,267 @@ Isolation Forest
 ```
 
 then describe the remaining fault-specific algorithms as the **diagnosis/proposed layer** rather than claiming they are already running.
+
+
+Here’s the **simple way to understand this whole risk-score system**:
+
+### Big picture
+
+For every new sensor reading, the system asks:
+
+> **“How unusual is this reading compared with what this device normally does?”**
+
+It keeps **two windows**:
+
+* **Long window = 200 points** → learns the device's normal behavior.
+* **Short window = 8 points** → looks at what the device is doing *right now*.
+
+The **MAD** (Median Absolute Deviation) is basically a robust measure of **normal sensor variation/noise**.
+
+So, generally:
+
+> **Risk Score = “How many times bigger than normal is this abnormal behavior?”**
+
+---
+
+### 1. Spike
+
+A spike is a **sudden abnormal reading that goes back to normal**.
+
+Example:
+
+```text
+Normal:  25  25  26  25  25
+Spike:                  43
+Then:                         25  26
+```
+
+The formula:
+
+$$
+Score = \frac{|Current - LongTermMedian|}{LongTermMAD}
+$$
+
+If:
+
+$$
+Score \ge 4.5
+$$
+
+and the recent history is still near normal → **Spike**.
+
+**Simple meaning:**
+
+> “The current value is 4.5+ normal deviations away from what this sensor usually does.”
+
+---
+
+### 2. Drift
+
+Drift is different because the sensor **gradually moves away from normal**.
+
+```text
+25 → 26 → 27 → 29 → 31 → 33
+```
+
+The system compares the recent 8-point median against the long-term median:
+
+$$
+Score =
+\frac{|ShortMedian-LongMedian|}
+{LongMAD}
+$$
+
+It also checks:
+
+$$
+r \ge 0.6
+$$
+
+The Pearson correlation is basically checking:
+
+> **“Are the values consistently moving in one direction?”**
+
+If score ≥ 3.0 and correlation ≥ 0.6 → **Drift**.
+
+**Simple meaning:**
+
+> “The sensor isn't suddenly broken; it's steadily moving away from its normal level.”
+
+---
+
+### 3. Flatline
+
+A flatline means the sensor has **stopped varying**.
+
+Normally:
+
+```text
+25.1 → 25.4 → 24.9 → 25.2 → 25.0
+```
+
+Flatline:
+
+```text
+25.0 → 25.0 → 25.0 → 25.0 → 25.0
+```
+
+The key thing being measured is **MAD**.
+
+Normally:
+
+$$
+MAD_{short} \approx MAD_{long}
+$$
+
+But during a flatline:
+
+$$
+MAD_{short} \ll MAD_{long}
+$$
+
+The trigger is:
+
+$$
+MAD_{short} \le 0.15 \times MAD_{long}
+$$
+
+So the system says:
+
+> **“This sensor has almost completely stopped changing.”**
+
+---
+
+### 4. Oscillation
+
+Oscillation means the sensor is **rapidly bouncing back and forth**.
+
+For example:
+
+```text
+25 → 32 → 24 → 33 → 23 → 31 → 24
+```
+
+The system checks two things:
+
+**Amplitude:**
+
+$$
+Score =
+\frac{MAD_{short}}{MAD_{long}}
+$$
+
+and **zero-crossing rate ≥ 70%**.
+
+Zero-crossing rate essentially asks:
+
+> **“How frequently is the signal switching direction/sign?”**
+
+If it's switching rapidly and:
+
+$$
+Score \ge 1.6
+$$
+
+→ **Oscillation**.
+
+**Simple meaning:**
+
+> “The sensor is behaving much more violently than normal and repeatedly changing direction.”
+
+---
+
+### 5. Sensor Swap
+
+This is like a **sudden permanent jump**.
+
+Spike:
+
+```text
+25 → 25 → 45 → 25 → 25
+             ↑
+          temporary
+```
+
+Sensor swap:
+
+```text
+25 → 25 → 45 → 45 → 45 → 45
+             ↑
+          permanent
+```
+
+The system looks for:
+
+$$
+Score =
+\frac{|ShortMedian-LongMedian|}
+{LongMAD}
+$$
+
+with:
+
+$$
+Score \ge 6.0
+$$
+
+and relatively low short-term variation:
+
+$$
+MAD_{short} \le 0.6 \times MAD_{long}
+$$
+
+So it means:
+
+> **“The sensor suddenly moved to a completely different stable operating level.”**
+
+---
+
+# How all 4 sensors become ONE risk score
+
+Your device has four channels:
+
+```text
+Temperature
+Voltage
+Vibration
+Humidity
+```
+
+Every time a new point arrives, the system evaluates **all four**.
+
+For example:
+
+| Channel     | Risk score | Detected  |
+| ----------- | ---------: | --------- |
+| Temperature |        1.2 | Normal    |
+| Voltage     |        2.1 | Normal    |
+| Vibration   |    **5.7** | **Spike** |
+| Humidity    |        0.8 | Normal    |
+
+The system takes the maximum:
+
+$$
+FinalRiskScore =
+\max(1.2,2.1,5.7,0.8)
+$$
+
+Therefore:
+
+$$
+\boxed{FinalRiskScore=5.7}
+$$
+
+And it records:
+
+```text
+Failure Mode: Spike
+Affected Channel: Vibration
+Risk Score: 5.7
+```
+
+### The key idea to remember for your presentation
+
+> **The long window tells us what “normal” looks like, while the short window tells us what the sensor is doing right now. Each failure mode has a mathematical signature, and the system chooses the strongest anomaly across all four channels as the device's final risk score.**
+
+That is the easiest way to explain why you **don't just use one generic anomaly formula**: a spike, drift, flatline, oscillation, and sensor swap have fundamentally different patterns, so each gets a score designed around its specific behavior.
