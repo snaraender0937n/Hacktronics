@@ -888,18 +888,6 @@ $$
 Score = \frac{|Current - LongTermMedian|}{LongTermMAD}
 $$
 
-If:
-
-$$
-Score \ge 4.5
-$$
-
-and the recent history is still near normal → **Spike**.
-
-**Simple meaning:**
-
-> “The current value is 4.5+ normal deviations away from what this sensor usually does.”
-
 ---
 
 ### 2. Drift
@@ -917,22 +905,6 @@ Score =
 \frac{|ShortMedian-LongMedian|}
 {LongMAD}
 $$
-
-It also checks:
-
-$$
-r \ge 0.6
-$$
-
-The Pearson correlation is basically checking:
-
-> **“Are the values consistently moving in one direction?”**
-
-If score ≥ 3.0 and correlation ≥ 0.6 → **Drift**.
-
-**Simple meaning:**
-
-> “The sensor isn't suddenly broken; it's steadily moving away from its normal level.”
 
 ---
 
@@ -966,15 +938,6 @@ $$
 MAD_{short} \ll MAD_{long}
 $$
 
-The trigger is:
-
-$$
-MAD_{short} \le 0.15 \times MAD_{long}
-$$
-
-So the system says:
-
-> **“This sensor has almost completely stopped changing.”**
 
 ---
 
@@ -1003,11 +966,7 @@ Zero-crossing rate essentially asks:
 
 > **“How frequently is the signal switching direction/sign?”**
 
-If it's switching rapidly and:
-
-$$
-Score \ge 1.6
-$$
+If it's switching rapidly 
 
 → **Oscillation**.
 
